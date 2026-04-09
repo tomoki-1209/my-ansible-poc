@@ -1,5 +1,5 @@
 ---
-- name: AWSの接続テスト
+- name: EC2インスタンス数の取得
   hosts: localhost
   connection: local
   gather_facts: false
