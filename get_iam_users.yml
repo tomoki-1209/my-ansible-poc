@@ -1,0 +1,19 @@
+---
+- name: AWS IAMユーザー一覧の取得
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: IAMユーザー情報を取得
+      amazon.aws.iam_user_info:
+      register: iam_info
+
+    - name: ユーザー名の一覧を抽出
+      set_fact:
+        user_list: "{{ iam_info.iam_users | map(attribute='user_name') | list }}"
+
+    - name: 取得結果の表示
+      debug:
+        msg: 
+          - "現在、このAWSアカウントには {{ user_list | length }} 名のIAMユーザーが登録されています。"
+          - "ユーザー名: {{ user_list | join(', ') }}"
