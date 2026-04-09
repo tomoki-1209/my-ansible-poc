@@ -1,0 +1,14 @@
+---
+- name: AWSの接続テスト
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: 現在のインスタンス一覧を取得してみる
+      amazon.aws.ec2_instance_info:
+        region: ap-northeast-1
+      register: ec2_info
+
+    - name: インスタンス数を表示
+      debug:
+        msg: "現在、ap-northeast-1には {{ ec2_info.instances | length }} 台のサーバーがあります。"
