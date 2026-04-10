@@ -1,14 +1,14 @@
 ---
-- name: List EC2 instances in Tokyo region
+- name: Get EC2 instances in Tokyo region
   hosts: localhost
   gather_facts: no
   tasks:
-    - name: Get EC2 instances in Tokyo region
+    - name: Retrieve EC2 instances from Tokyo region
       amazon.aws.ec2_instance_info:
         region: ap-northeast-1
       register: ec2_instances
 
-    - name: Display instance names and IDs
+    - name: Display instance name and ID
       debug:
         msg: "Instance Name: {{ item.tags.Name | default('N/A') }}, Instance ID: {{ item.instance_id }}"
       loop: "{{ ec2_instances.instances }}"
