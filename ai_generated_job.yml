@@ -1,12 +1,13 @@
 ---
-- name: Get IAM users list
+- name: List IAM Users
   hosts: localhost
   gather_facts: no
   tasks:
-    - name: List all IAM users
+    - name: Get IAM users list
       amazon.aws.iam_user_info:
       register: iam_users
 
     - name: Display IAM users
       debug:
-        msg: "{{ iam_users.iam_users | map(attribute='user_name') | list }}"
+        msg: "{{ item.user_name }}"
+      loop: "{{ iam_users.iam_users }}"
