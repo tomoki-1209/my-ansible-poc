@@ -1,5 +1,5 @@
 ---
-- name: Get EC2 instances in Tokyo region
+- name: Get EC2 instances and tags in Tokyo region
   hosts: localhost
   gather_facts: no
   tasks:
@@ -8,9 +8,9 @@
         region: ap-northeast-1
       register: ec2_instances
 
-    - name: Display instance ID and Name
+    - name: Display instance names and tags
       debug:
-        msg: "Instance ID: {{ item.instance_id }}, Name: {{ item.tags.Name | default('N/A') }}"
+        msg: "Instance: {{ item.tags.Name | default('N/A') }} | Tags: {{ item.tags }}"
       loop: "{{ ec2_instances.instances }}"
       loop_control:
         label: "{{ item.instance_id }}"
