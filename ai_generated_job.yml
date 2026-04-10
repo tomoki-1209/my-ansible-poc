@@ -1,12 +1,13 @@
 ---
-- name: Get IAM Users List
+- name: Get instances list with name and ID
   hosts: localhost
   gather_facts: no
   tasks:
-    - name: List all IAM users
-      amazon.aws.iam_user_info:
-      register: iam_users
+    - name: Retrieve EC2 instances
+      amazon.aws.ec2_instance_info:
+      register: ec2_instances
 
-    - name: Display IAM users
+    - name: Display instances with name and ID
       debug:
-        msg: "{{ iam_users.iam_users | map(attribute='user_name') | list }}"
+        msg: "Instance Name: {{ item.tags.Name | default('N/A') }}, Instance ID: {{ item.instance_id }}"
+      loop: "{{ ec2_instances.instances }}"
