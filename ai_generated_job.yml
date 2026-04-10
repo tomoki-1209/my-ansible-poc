@@ -1,13 +1,17 @@
 ---
-- name: List IAM Users
+- name: Get IAM users list
   hosts: localhost
   gather_facts: no
   tasks:
-    - name: Get IAM users list
+    - name: List all IAM users
       amazon.aws.iam_user_info:
       register: iam_users
 
     - name: Display IAM users
       debug:
-        msg: "{{ item.user_name }}"
-      loop: "{{ iam_users.iam_users }}"
+        msg: "{{ iam_users.iam_users }}"
+
+    - name: Save IAM users to file
+      copy:
+        content: "{{ iam_users.iam_users | to_nice_json }}"
+        dest: "/tmp/iam_users_list.json"
