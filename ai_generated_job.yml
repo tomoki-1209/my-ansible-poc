@@ -1,5 +1,5 @@
 ---
-- name: Get IAM users list
+- name: Get IAM Users List
   hosts: localhost
   gather_facts: no
   tasks:
@@ -9,9 +9,4 @@
 
     - name: Display IAM users
       debug:
-        msg: "{{ iam_users.iam_users }}"
-
-    - name: Save IAM users to file
-      copy:
-        content: "{{ iam_users.iam_users | to_nice_json }}"
-        dest: "/tmp/iam_users_list.json"
+        msg: "{{ iam_users.iam_users | map(attribute='user_name') | list }}"
