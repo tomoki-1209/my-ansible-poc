@@ -1,0 +1,16 @@
+---
+- name: Get EC2 instances list
+  hosts: all
+  gather_facts: no
+  tasks:
+    - name: Retrieve EC2 instances information
+      amazon.aws.ec2_instance_info:
+      register: ec2_instances
+      delegate_to: localhost
+
+    - name: Display instances list
+      debug:
+        msg: "Instance ID: {{ item.instance_id }}, State: {{ item.state.name }}, Type: {{ item.instance_type }}, Name: {{ item.tags.Name | default('N/A') }}"
+      loop: "{{ ec2_instances.instances }}"
+      loop_control:
+        label: "{{ item.instance_id }}"
