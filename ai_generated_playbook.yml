@@ -3,24 +3,18 @@
   hosts: all
   gather_facts: false
   tasks:
-    - name: Launch Windows Server 2022 instance
+    - name: Create EC2 instance
       amazon.aws.ec2_instance:
+        name: windows-server-2022
         image_id: ami-011fe16e2cdada577
         instance_type: t3.medium
         key_name: keypair_oikawa
         region: ap-northeast-1
-        security_group: default
+        tags:
+          Name: windows-server-2022
         state: running
-        tag_specifications:
-          - resource_type: instance
-            tags:
-              Name: windows-server-2022
-      register: ec2_result
+      register: instance_result
 
     - name: Display instance information
       debug:
-        msg:
-          - "Instance ID: {{ ec2_result.instances[0].instance_id }}"
-          - "Instance Type: {{ ec2_result.instances[0].instance_type }}"
-          - "Public IP: {{ ec2_result.instances[0].public_ip_address }}"
-          - "State: {{ ec2_result.instances[0].state.name }}"
+        msg: "Instance {{ instance_result.instances[0].instance_id }} created successfully"
