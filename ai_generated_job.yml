@@ -1,12 +1,13 @@
 ---
-- name: Check if users related to oikawa exist
+- name: Check current users
   hosts: all
+  gather_facts: no
   tasks:
     - name: Get list of users
       getent:
         database: passwd
-      register: passwd_data
+      register: user_list
 
-    - name: Check for oikawa-related users
+    - name: Display current users
       debug:
-        msg: "oikawa-related users found: {{ passwd_data.ansible_facts.getent_passwd.keys() | select('search', 'oikawa') | list }}"
+        msg: "{{ user_list.ansible_facts.getent_passwd.keys() | list }}"
