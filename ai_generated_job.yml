@@ -1,9 +1,9 @@
 ---
-- name: List IAM Users
+- name: Get IAM Users List
   hosts: localhost
   gather_facts: no
   tasks:
-    - name: Get all IAM users
+    - name: List all IAM users
       amazon.aws.iam_user_info:
       register: iam_users
 
