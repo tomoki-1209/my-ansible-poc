@@ -1,21 +1,23 @@
 ---
-- name: Create EC2 instance with Windows Server 2022
+- name: Create EC2 instance in Tokyo region
   hosts: localhost
   gather_facts: no
   tasks:
-    - name: Launch EC2 instance
+    - name: Create Windows Server 2022 EC2 instance in Tokyo
       amazon.aws.ec2_instance:
-        name: windows-server-2022
-        image_id: ami-0c55b159cbfafe1f0
+        region: ap-northeast-1
+        image_id: ami-0bba69335379e17f8
         instance_type: t3.medium
-        key_name: default
-        security_group: default
+        key_name: your-key-pair
         state: running
+        security_group: default
+        tags:
+          Name: WindowsServer2022
       register: ec2_result
 
-    - name: Display instance information
+    - name: Display instance details
       debug:
-        msg:
-          - "Instance ID: {{ ec2_result.instances[0].instance_id }}"
-          - "Instance State: {{ ec2_result.instances[0].state.name }}"
-          - "Public IP: {{ ec2_result.instances[0].public_ip_address | default('Not assigned yet') }}"
+        msg: |
+          Instance ID: {{ ec2_result.instance_ids[0] }}
+          Private IP: {{ ec2_result.instances[0].private_ip_address }}
+          State: {{ ec2_result.instances[0].state.name }}
