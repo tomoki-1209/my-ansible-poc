@@ -1,13 +1,12 @@
 ---
-- name: Check current users
-  hosts: all
+- name: Get current IAM user information
+  hosts: localhost
   gather_facts: no
   tasks:
-    - name: Get list of users
-      getent:
-        database: passwd
-      register: user_list
+    - name: Get current AWS identity
+      amazon.aws.aws_caller_info:
+      register: caller_info
 
-    - name: Display current users
+    - name: Display IAM user information
       debug:
-        msg: "{{ user_list.ansible_facts.getent_passwd.keys() | list }}"
+        msg: "Current IAM User: {{ caller_info.iam_user_arn }}"
