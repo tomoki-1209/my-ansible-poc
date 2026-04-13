@@ -1,15 +1,15 @@
 ---
-- name: Get IAM user list
-  hosts: all
+- name: Get EC2 instances
+  hosts: localhost
   gather_facts: false
   tasks:
-    - name: List all IAM users
-      amazon.aws.iam_user_info:
-      register: iam_users
+    - name: Retrieve EC2 instances
+      amazon.aws.ec2_instance_info:
+      register: ec2_instances
 
-    - name: Display user list
+    - name: Display EC2 instances
       debug:
-        msg: "{{ item.user_name }}"
-      loop: "{{ iam_users.iam_users }}"
+        msg: "Instance ID: {{ item.instance_id }}, State: {{ item.state.name }}, Type: {{ item.instance_type }}, IP: {{ item.private_ip_address }}"
+      loop: "{{ ec2_instances.instances }}"
       loop_control:
-        label: "{{ item.user_name }}"
+        label: "{{ item.instance_id }}"
