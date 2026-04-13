@@ -1,15 +1,14 @@
 ---
-- name: AWS EC2 instances information
-  hosts: all
-  gather_facts: false
+- hosts: all
+  gather_facts: no
   tasks:
-    - name: Get EC2 instances list
+    - name: EC2インスタンス一覧を取得
       amazon.aws.ec2_instance_info:
-      register: ec2_info
+      register: ec2_instances
 
-    - name: Display instances
+    - name: EC2インスタンス情報を表示
       debug:
         msg: "Instance ID: {{ item.instance_id }}, State: {{ item.state.name }}, Type: {{ item.instance_type }}, Name: {{ item.tags.Name | default('N/A') }}"
-      loop: "{{ ec2_info.instances }}"
+      loop: "{{ ec2_instances.instances }}"
       loop_control:
         label: "{{ item.instance_id }}"
