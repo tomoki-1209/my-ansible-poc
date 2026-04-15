@@ -1,53 +1,26 @@
 ---
-- hosts: localhost
-  gather_facts: yes
+- hosts: all
+  gather_facts: no
   tasks:
-    - name: Get current date and time
-      set_fact:
-        current_datetime: "{{ ansible_date_time.iso8601_basic_short }}"
-
-    - name: Create Windows Server 2022 EC2 instance
-      amazon.aws.ec2_instance:
-        name: "WindowsServer2022-{{ current_datetime }}"
-        instance_type: t3.medium
-        image_id: ami-011fe16e2cdada577
+    - name: Get EC2 instance information
+      amazon.aws.ec2_instance_info:
+        instance_ids:
+          - i-0792f3009d6b495ea
         region: ap-northeast-1
-        key_name: keypair_oikawa
-        security_group: sg-073febbc6a28f598e
-        user_data: |
-          <powershell>
-          $ErrorActionPreference = "Stop"
-          
-          # Set Administrator password
-          $adminPassword = "XieAwx0415"
-          $adminUser = [ADSI]"WinNT://./Administrator"
-          $adminUser.SetPassword($adminPassword)
-          
-          # Disable Windows Defender Firewall
-          Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled $false
-          
-          # Enable WinRM
-          winrm quickconfig -q
-          winrm set winrm/config/winrs '@{MaxMemoryPerShellMB=2048}'
-          winrm set winrm/config '@{MaxTimeoutms=1800000}'
-          
-          # Configure WinRM for HTTPS
-          $thumbprint = (New-SelfSignedCertificate -DnsName $env:COMPUTERNAME -CertStoreLocation Cert:\LocalMachine\My).Thumbprint
-          New-Item -Path WSMan:\LocalHost\Listener -Transport HTTPS -Address * -CertificateThumbPrint $thumbprint -Force | Out-Null
-          
-          # Configure WinRM service
-          Set-Item -Path WSMan:\LocalHost\Service\Auth\Basic -Value $true
-          Set-Item -Path WSMan:\LocalHost\Service\AllowUnencrypted -Value $false
-          
-          # Enable WinRM service
-          Set-Service WinRM -StartupType Automatic
-          Start-Service WinRM
-          </powershell>
-        tags:
-          Name: "WindowsServer2022-{{ current_datetime }}"
-          OS: "Windows Server 2022"
-      register: ec2_instance
+      register: ec2_info
 
-    - name: Display instance details
+    - name: Display instance information
       debug:
-        msg: "Instance created: {{ ec2_instance.instances[0].instance_id }}"
+        msg:
+          - "Instance ID: {{ item.instance_id }}"
+          - "Instance Type: {{ item.instance_type }}"
+          - "State: {{ item.state.name }}"
+          - "Public IP: {{ item.public_ip_address }}"
+          - "Private IP: {{ item.private_ip_address }}"
+          - "VPC ID: {{ item.vpc_id }}"
+          - "Subnet ID: {{ item.subnet_id }}"
+          - "Launch Time: {{ item.launch_time }}"
+          - "Tags: {{ item.tags }}"
+      loop: "{{ ec2_info.instances }}"
+      loop_control:
+        label: "{{ item.instance_id }}"
