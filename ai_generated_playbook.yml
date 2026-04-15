@@ -1,13 +1,14 @@
 ---
-- hosts: 172.31.47.151
-  gather_facts: yes
+- hosts: all
+  gather_facts: no
   tasks:
-    - name: Change hostname to AWXTEST01
-      win_hostname:
-        name: AWXTEST01
-      register: hostname_result
+    - name: Get instance details
+      amazon.aws.ec2_instance_info:
+        instance_ids:
+          - i-0ad6132d070d14d2f
+        region: ap-northeast-1
+      register: instance_info
 
-    - name: Reboot to apply hostname change
-      win_reboot:
-        msg: "Hostname change requires reboot"
-        pre_reboot_delay: 2
+    - name: Display IP address
+      debug:
+        msg: "Private IP: {{ instance_info.instances[0].private_ip_address }}, Public IP: {{ instance_info.instances[0].public_ip_address }}"
