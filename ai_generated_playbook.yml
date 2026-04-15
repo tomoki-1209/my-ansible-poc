@@ -1,18 +1,13 @@
 ---
-- name: Get EC2 instance IP address
-  hosts: all
-  gather_facts: no
+- hosts: 172.31.47.151
+  gather_facts: yes
   tasks:
-    - name: Describe EC2 instance
-      amazon.aws.ec2_instance_info:
-        instance_ids:
-          - i-0ad6132d070d14d2f
-        region: ap-northeast-1
-      register: instance_info
+    - name: Change hostname to AWXTEST01
+      win_hostname:
+        name: AWXTEST01
+      register: hostname_result
 
-    - name: Display instance IP address
-      debug:
-        msg: "Instance {{ item.instance_id }}: Private IP = {{ item.private_ip_address }}, Public IP = {{ item.public_ip_address | default('None') }}"
-      loop: "{{ instance_info.instances }}"
-      loop_control:
-        label: "{{ item.instance_id }}"
+    - name: Reboot to apply hostname change
+      win_reboot:
+        msg: "Hostname change requires reboot"
+        pre_reboot_delay: 2
