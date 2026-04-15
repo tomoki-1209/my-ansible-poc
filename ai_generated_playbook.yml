@@ -1,20 +1,55 @@
 ---
-- name: Create Windows Server 2022 Instance
-  hosts: all
+- hosts: localhost
   gather_facts: false
   tasks:
-    - name: Create EC2 instance
+    - name: Create Windows Server 2022 EC2 instance
       amazon.aws.ec2_instance:
-        name: windows-server-2022
         image_id: ami-011fe16e2cdada577
         instance_type: t3.medium
         key_name: keypair_oikawa
         region: ap-northeast-1
+        security_group: default
         tags:
-          Name: windows-server-2022
+          Name: WindowsServer2022
+        user_data: |
+          <powershell>
+          $ErrorActionPreference = "Stop"
+          
+          # Set Administrator password
+          $admin = [adsi]("WinNT://./Administrator, user")
+          $admin.PSBase.Invoke("SetPassword", "XieAwx0415")
+          
+          # Enable WinRM
+          winrm quickconfig -q
+          winrm set winrm/config/winrs '@{MaxMemoryPerShellMB=2048}'
+          winrm set winrm/config '@{MaxEnvelopeSizekb=8000}'
+          winrm set winrm/config/service '@{AllowUnencrypted="false"}'
+          winrm set winrm/config/service/auth '@{Basic="true"}'
+          winrm set winrm/config/client/auth '@{Basic="true"}'
+          
+          # Create self-signed certificate
+          $thumbprint = (New-SelfSignedCertificate -DnsName $env:COMPUTERNAME -CertStoreLocation Cert:\LocalMachine\My -KeyUsage KeyEncipherment -Provider "Microsoft Enhanced Cryptographic Provider v1.0").Thumbprint
+          
+          # Configure WinRM HTTPS listener
+          $selector_set = @{
+              Transport = "HTTPS"
+              Address = "*"
+          }
+          $value_set = @{
+              CertificateThumbprint = $thumbprint
+          }
+          New-WSManInstance -ResourceURI 'winrm/config/Listener' -SelectorSet $selector_set -ValueSet $value_set
+          
+          # Configure firewall
+          netsh advfirewall firewall add rule name="WinRM-HTTPS" dir=in action=allow protocol=TCP localport=5986
+          
+          # Restart WinRM service
+          Restart-Service WinRM -Force
+          </powershell>
+        wait: true
         state: running
-      register: instance_result
-
+      register: ec2_result
+    
     - name: Display instance information
       debug:
-        msg: "Instance {{ instance_result.instances[0].instance_id }} created successfully"
+        msg: "Instance created - ID: {{ ec2_result.instances[0].instance_id }}, Private IP: {{ ec2_result.instances[0].private_ip_address }}"
