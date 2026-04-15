@@ -1,90 +1,60 @@
 ---
-- name: Create Windows Server 2022 Instance
+- name: Create Windows Server 2022 EC2 Instance
   hosts: all
-  gather_facts: no
+  gather_facts: yes
   tasks:
     - name: Get current date and time
       set_fact:
         current_datetime: "{{ ansible_date_time.iso8601_basic_short }}"
-      vars:
-        ansible_date_time: "{{ ansible_date_time | default(lookup('pipe', 'date +%Y%m%d%H%M%S')) }}"
 
-    - name: Set instance name
-      set_fact:
-        instance_name: "WindowsServer2022-{{ lookup('pipe', 'date +%Y%m%d%H%M%S') }}"
-
-    - name: Create security group for Windows instance
-      amazon.aws.ec2_group:
-        name: "ws2022-sg-{{ lookup('pipe', 'date +%s') }}"
-        description: "Security group for Windows Server 2022"
+    - name: Create Windows Server 2022 instance
+      amazon.aws.ec2_instance:
+        name: "WindowsServer2022-{{ current_datetime }}"
+        instance_type: t3.medium
+        image_id: ami-011fe16e2cdada577
         region: ap-northeast-1
-        rules:
-          - proto: tcp
-            ports:
-              - 5986
-            cidr_ip: 0.0.0.0/0
-            rule_desc: "WinRM HTTPS"
-          - proto: tcp
-            ports:
-              - 3389
-            cidr_ip: 0.0.0.0/0
-            rule_desc: "RDP"
-      register: sg_result
-
-    - name: Prepare User Data script
-      set_fact:
-        user_data_script: |
+        key_name: keypair_oikawa
+        security_group_ids:
+          - sg-073febbc6a28f598e
+        user_data: |
           <powershell>
+          # Configure Windows Remote Management for Ansible
           $ErrorActionPreference = "Stop"
           
           # Set Administrator password
-          $admin = [ADSI]("WinNT://./Administrator, user")
-          $admin.PSBase.Invoke("SetPassword", "XieAwx0415")
+          $adminPassword = "XieAwx0415"
+          $adminUser = [ADSI]("WinNT://./Administrator")
+          $adminUser.SetPassword($adminPassword)
           
           # Disable Windows Defender Firewall
-          Set-NetFirewallProfile -Profile Domain, Public, Private -Enabled $false
+          Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled $false
           
           # Enable WinRM
           Enable-PSRemoting -Force
           
           # Create self-signed certificate
-          $cert = New-SelfSignedCertificate -CertstoreLocation Cert:\LocalMachine\My -DnsName @("localhost","127.0.0.1",$env:COMPUTERNAME) -FriendlyName "WinRM" -NotAfter (Get-Date).AddYears(5)
+          $hostname = [System.Net.Dns]::GetHostName()
+          $cert = New-SelfSignedCertificate -DnsName $hostname -CertStoreLocation Cert:\LocalMachine\My -Type SSLAuthenticationBinding
           
           # Configure WinRM HTTPS listener
           $thumbprint = $cert.Thumbprint
-          winrm create winrm/config/Listener?Transport=HTTPS "@{Hostname=`"$env:COMPUTERNAME`";CertificateThumbprint=`"$thumbprint`"}"
+          Remove-Item -Path WSMan:\localhost\Listener\* -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -Path WSMan:\localhost\Listener -Transport HTTPS -Address * -CertificateThumbPrint $thumbprint -Force
           
-          # Configure WinRM service
-          winrm set winrm/config/service '@{AllowUnencrypted="false"}'
-          winrm set winrm/config/service/auth '@{Basic="true";Negotiate="true";Kerberos="true";Certificate="false"}'
-          winrm set winrm/config/listener?Transport=HTTPS '@{Port="5986"}'
+          # Set WinRM configuration
+          Set-Item -Path WSMan:\localhost\Service\Auth\Basic -Value $true
+          Set-Item -Path WSMan:\localhost\Service\Auth\CredSSP -Value $true
+          Set-Item -Path WSMan:\localhost\Service\AllowUnencrypted -Value $false
           
-          # Start WinRM service
-          Start-Service WinRM
-          Set-Service WinRM -StartupType Automatic
+          # Restart WinRM service
+          Restart-Service WinRM -Force
           </powershell>
-
-    - name: Launch Windows Server 2022 instance
-      amazon.aws.ec2_instance:
-        name: "{{ instance_name }}"
-        image_id: ami-011fe16e2cdada577
-        instance_type: t3.medium
-        key_name: keypair_oikawa
-        region: ap-northeast-1
-        security_group_ids:
-          - sg-073febbc6a28f598e
-        user_data: "{{ user_data_script }}"
         tags:
-          Name: "{{ instance_name }}"
-          OS: "Windows Server 2022"
-        wait: yes
+          Name: "WindowsServer2022-{{ current_datetime }}"
+          Environment: "Development"
+          CreatedBy: "Ansible"
       register: instance_result
 
     - name: Display instance details
       debug:
-        msg:
-          - "Instance ID: {{ instance_result.instances[0].instance_id }}"
-          - "Instance Name: {{ instance_result.instances[0].tags.Name }}"
-          - "State: {{ instance_result.instances[0].state.name }}"
-          - "Public IP: {{ instance_result.instances[0].public_ip_address | default('Pending') }}"
-          - "Private IP: {{ instance_result.instances[0].private_ip_address }}"
+        msg: "Instance {{ instance_result.instances[0].tags.Name }} created with ID: {{ instance_result.instances[0].instance_id }}"
