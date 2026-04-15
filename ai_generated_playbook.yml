@@ -1,55 +1,90 @@
 ---
-- hosts: localhost
-  gather_facts: false
+- name: Create Windows Server 2022 Instance
+  hosts: all
+  gather_facts: no
   tasks:
-    - name: Create Windows Server 2022 EC2 instance
-      amazon.aws.ec2_instance:
-        image_id: ami-011fe16e2cdada577
-        instance_type: t3.medium
-        key_name: keypair_oikawa
+    - name: Get current date and time
+      set_fact:
+        current_datetime: "{{ ansible_date_time.iso8601_basic_short }}"
+      vars:
+        ansible_date_time: "{{ ansible_date_time | default(lookup('pipe', 'date +%Y%m%d%H%M%S')) }}"
+
+    - name: Set instance name
+      set_fact:
+        instance_name: "WindowsServer2022-{{ lookup('pipe', 'date +%Y%m%d%H%M%S') }}"
+
+    - name: Create security group for Windows instance
+      amazon.aws.ec2_group:
+        name: "ws2022-sg-{{ lookup('pipe', 'date +%s') }}"
+        description: "Security group for Windows Server 2022"
         region: ap-northeast-1
-        security_group: default
-        tags:
-          Name: WindowsServer2022
-        user_data: |
+        rules:
+          - proto: tcp
+            ports:
+              - 5986
+            cidr_ip: 0.0.0.0/0
+            rule_desc: "WinRM HTTPS"
+          - proto: tcp
+            ports:
+              - 3389
+            cidr_ip: 0.0.0.0/0
+            rule_desc: "RDP"
+      register: sg_result
+
+    - name: Prepare User Data script
+      set_fact:
+        user_data_script: |
           <powershell>
           $ErrorActionPreference = "Stop"
           
           # Set Administrator password
-          $admin = [adsi]("WinNT://./Administrator, user")
+          $admin = [ADSI]("WinNT://./Administrator, user")
           $admin.PSBase.Invoke("SetPassword", "XieAwx0415")
           
+          # Disable Windows Defender Firewall
+          Set-NetFirewallProfile -Profile Domain, Public, Private -Enabled $false
+          
           # Enable WinRM
-          winrm quickconfig -q
-          winrm set winrm/config/winrs '@{MaxMemoryPerShellMB=2048}'
-          winrm set winrm/config '@{MaxEnvelopeSizekb=8000}'
-          winrm set winrm/config/service '@{AllowUnencrypted="false"}'
-          winrm set winrm/config/service/auth '@{Basic="true"}'
-          winrm set winrm/config/client/auth '@{Basic="true"}'
+          Enable-PSRemoting -Force
           
           # Create self-signed certificate
-          $thumbprint = (New-SelfSignedCertificate -DnsName $env:COMPUTERNAME -CertStoreLocation Cert:\LocalMachine\My -KeyUsage KeyEncipherment -Provider "Microsoft Enhanced Cryptographic Provider v1.0").Thumbprint
+          $cert = New-SelfSignedCertificate -CertstoreLocation Cert:\LocalMachine\My -DnsName @("localhost","127.0.0.1",$env:COMPUTERNAME) -FriendlyName "WinRM" -NotAfter (Get-Date).AddYears(5)
           
           # Configure WinRM HTTPS listener
-          $selector_set = @{
-              Transport = "HTTPS"
-              Address = "*"
-          }
-          $value_set = @{
-              CertificateThumbprint = $thumbprint
-          }
-          New-WSManInstance -ResourceURI 'winrm/config/Listener' -SelectorSet $selector_set -ValueSet $value_set
+          $thumbprint = $cert.Thumbprint
+          winrm create winrm/config/Listener?Transport=HTTPS "@{Hostname=`"$env:COMPUTERNAME`";CertificateThumbprint=`"$thumbprint`"}"
           
-          # Configure firewall
-          netsh advfirewall firewall add rule name="WinRM-HTTPS" dir=in action=allow protocol=TCP localport=5986
+          # Configure WinRM service
+          winrm set winrm/config/service '@{AllowUnencrypted="false"}'
+          winrm set winrm/config/service/auth '@{Basic="true";Negotiate="true";Kerberos="true";Certificate="false"}'
+          winrm set winrm/config/listener?Transport=HTTPS '@{Port="5986"}'
           
-          # Restart WinRM service
-          Restart-Service WinRM -Force
+          # Start WinRM service
+          Start-Service WinRM
+          Set-Service WinRM -StartupType Automatic
           </powershell>
-        wait: true
-        state: running
-      register: ec2_result
-    
-    - name: Display instance information
+
+    - name: Launch Windows Server 2022 instance
+      amazon.aws.ec2_instance:
+        name: "{{ instance_name }}"
+        image_id: ami-011fe16e2cdada577
+        instance_type: t3.medium
+        key_name: keypair_oikawa
+        region: ap-northeast-1
+        security_group_ids:
+          - sg-073febbc6a28f598e
+        user_data: "{{ user_data_script }}"
+        tags:
+          Name: "{{ instance_name }}"
+          OS: "Windows Server 2022"
+        wait: yes
+      register: instance_result
+
+    - name: Display instance details
       debug:
-        msg: "Instance created - ID: {{ ec2_result.instances[0].instance_id }}, Private IP: {{ ec2_result.instances[0].private_ip_address }}"
+        msg:
+          - "Instance ID: {{ instance_result.instances[0].instance_id }}"
+          - "Instance Name: {{ instance_result.instances[0].tags.Name }}"
+          - "State: {{ instance_result.instances[0].state.name }}"
+          - "Public IP: {{ instance_result.instances[0].public_ip_address | default('Pending') }}"
+          - "Private IP: {{ instance_result.instances[0].private_ip_address }}"
