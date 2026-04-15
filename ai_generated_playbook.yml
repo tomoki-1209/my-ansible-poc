@@ -1,8 +1,15 @@
 ---
 - hosts: all
-  gather_facts: yes
+  gather_facts: no
+  vars:
+    ansible_connection: winrm
+    ansible_port: 5986
+    ansible_winrm_server_cert_validation: ignore
+    ansible_winrm_transport: basic
   tasks:
-    - name: Get hostname of 172.31.47.151
+    - name: Get hostname
+      win_command: hostname
+      register: hostname_result
+    - name: Display hostname
       debug:
-        msg: "{{ hostvars['172.31.47.151'].ansible_hostname }}"
-      when: inventory_hostname == '172.31.47.151'
+        msg: "{{ hostname_result.stdout_lines[0] }}"
