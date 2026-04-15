@@ -1,14 +1,8 @@
 ---
 - hosts: all
-  gather_facts: no
+  gather_facts: yes
   tasks:
-    - name: Get instance details
-      amazon.aws.ec2_instance_info:
-        instance_ids:
-          - i-0ad6132d070d14d2f
-        region: ap-northeast-1
-      register: instance_info
-
-    - name: Display IP address
+    - name: Get hostname of 172.31.47.151
       debug:
-        msg: "Private IP: {{ instance_info.instances[0].private_ip_address }}, Public IP: {{ instance_info.instances[0].public_ip_address }}"
+        msg: "{{ hostvars['172.31.47.151'].ansible_hostname }}"
+      when: inventory_hostname == '172.31.47.151'
