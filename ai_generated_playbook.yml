@@ -1,60 +1,53 @@
 ---
-- name: Create Windows Server 2022 EC2 Instance
-  hosts: all
+- hosts: localhost
   gather_facts: yes
   tasks:
     - name: Get current date and time
       set_fact:
         current_datetime: "{{ ansible_date_time.iso8601_basic_short }}"
 
-    - name: Create Windows Server 2022 instance
+    - name: Create Windows Server 2022 EC2 instance
       amazon.aws.ec2_instance:
         name: "WindowsServer2022-{{ current_datetime }}"
         instance_type: t3.medium
         image_id: ami-011fe16e2cdada577
         region: ap-northeast-1
         key_name: keypair_oikawa
-        security_group_ids:
-          - sg-073febbc6a28f598e
+        security_group: sg-073febbc6a28f598e
         user_data: |
           <powershell>
-          # Configure Windows Remote Management for Ansible
           $ErrorActionPreference = "Stop"
           
           # Set Administrator password
           $adminPassword = "XieAwx0415"
-          $adminUser = [ADSI]("WinNT://./Administrator")
+          $adminUser = [ADSI]"WinNT://./Administrator"
           $adminUser.SetPassword($adminPassword)
           
           # Disable Windows Defender Firewall
           Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled $false
           
           # Enable WinRM
-          Enable-PSRemoting -Force
+          winrm quickconfig -q
+          winrm set winrm/config/winrs '@{MaxMemoryPerShellMB=2048}'
+          winrm set winrm/config '@{MaxTimeoutms=1800000}'
           
-          # Create self-signed certificate
-          $hostname = [System.Net.Dns]::GetHostName()
-          $cert = New-SelfSignedCertificate -DnsName $hostname -CertStoreLocation Cert:\LocalMachine\My -Type SSLAuthenticationBinding
+          # Configure WinRM for HTTPS
+          $thumbprint = (New-SelfSignedCertificate -DnsName $env:COMPUTERNAME -CertStoreLocation Cert:\LocalMachine\My).Thumbprint
+          New-Item -Path WSMan:\LocalHost\Listener -Transport HTTPS -Address * -CertificateThumbPrint $thumbprint -Force | Out-Null
           
-          # Configure WinRM HTTPS listener
-          $thumbprint = $cert.Thumbprint
-          Remove-Item -Path WSMan:\localhost\Listener\* -Recurse -Force -ErrorAction SilentlyContinue
-          New-Item -Path WSMan:\localhost\Listener -Transport HTTPS -Address * -CertificateThumbPrint $thumbprint -Force
+          # Configure WinRM service
+          Set-Item -Path WSMan:\LocalHost\Service\Auth\Basic -Value $true
+          Set-Item -Path WSMan:\LocalHost\Service\AllowUnencrypted -Value $false
           
-          # Set WinRM configuration
-          Set-Item -Path WSMan:\localhost\Service\Auth\Basic -Value $true
-          Set-Item -Path WSMan:\localhost\Service\Auth\CredSSP -Value $true
-          Set-Item -Path WSMan:\localhost\Service\AllowUnencrypted -Value $false
-          
-          # Restart WinRM service
-          Restart-Service WinRM -Force
+          # Enable WinRM service
+          Set-Service WinRM -StartupType Automatic
+          Start-Service WinRM
           </powershell>
         tags:
           Name: "WindowsServer2022-{{ current_datetime }}"
-          Environment: "Development"
-          CreatedBy: "Ansible"
-      register: instance_result
+          OS: "Windows Server 2022"
+      register: ec2_instance
 
     - name: Display instance details
       debug:
-        msg: "Instance {{ instance_result.instances[0].tags.Name }} created with ID: {{ instance_result.instances[0].instance_id }}"
+        msg: "Instance created: {{ ec2_instance.instances[0].instance_id }}"
