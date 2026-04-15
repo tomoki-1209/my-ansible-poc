@@ -1,56 +1,18 @@
 ---
-- hosts: localhost
-  gather_facts: yes
+- name: Get EC2 instance IP address
+  hosts: all
+  gather_facts: no
   tasks:
-    - name: Create Windows Server 2022 EC2 instance
-      amazon.aws.ec2_instance:
-        name: "WindowsServer2022-{{ ansible_date_time.iso8601_basic_short }}"
-        instance_type: t3.medium
-        image_id: ami-011fe16e2cdada577
-        key_name: keypair_oikawa
+    - name: Describe EC2 instance
+      amazon.aws.ec2_instance_info:
+        instance_ids:
+          - i-0ad6132d070d14d2f
         region: ap-northeast-1
-        security_group: sg-073febbc6a28f598e
-        user_data: |
-          <powershell>
-          # ConfigureRemotingForAnsible.ps1
-          $ErrorActionPreference = "Stop"
-          
-          # Enable WinRM
-          winrm quickconfig -q
-          winrm set winrm/config/winrs '@{MaxMemoryPerShellMB=1024}'
-          winrm set winrm/config '@{MaxTimeoutms=1800000}'
-          winrm set winrm/config/service '@{AllowUnencrypted=False}'
-          winrm set winrm/config/service/auth '@{CredSSP=True}'
-          
-          # Create self-signed certificate
-          $cert = New-SelfSignedCertificate -DnsName localhost -CertStoreLocation Cert:\LocalMachine\My
-          $thumbprint = $cert.Thumbprint
-          
-          # Configure HTTPS listener
-          winrm create winrm/config/Listener?Address=*+Transport=HTTPS "@{Hostname=`"localhost`";CertificateThumbprint=`"$thumbprint`"}"
-          
-          # Open firewall for WinRM HTTPS
-          netsh advfirewall firewall add rule name="WinRM HTTPS" dir=in action=allow protocol=tcp localport=5986
-          
-          # Disable Windows Defender Firewall
-          Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False
-          
-          # Set Administrator password
-          $adminUser = [adsi]"WinNT://./Administrator,user"
-          $adminUser.SetPassword("XieAwx0415")
-          
-          # Restart WinRM service
-          Restart-Service WinRM -Force
-          </powershell>
-        tags:
-          Name: "WindowsServer2022-{{ ansible_date_time.iso8601_basic_short }}"
-          Environment: Production
-      register: ec2_result
-    
-    - name: Display instance details
+      register: instance_info
+
+    - name: Display instance IP address
       debug:
-        msg:
-          - "Instance ID: {{ ec2_result.instances[0].instance_id }}"
-          - "Instance Name: {{ ec2_result.instances[0].tags.Name }}"
-          - "Private IP: {{ ec2_result.instances[0].private_ip_address }}"
-          - "Instance State: {{ ec2_result.instances[0].state.name }}"
+        msg: "Instance {{ item.instance_id }}: Private IP = {{ item.private_ip_address }}, Public IP = {{ item.public_ip_address | default('None') }}"
+      loop: "{{ instance_info.instances }}"
+      loop_control:
+        label: "{{ item.instance_id }}"
