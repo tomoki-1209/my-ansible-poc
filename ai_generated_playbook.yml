@@ -1,15 +1,14 @@
 ---
-- name: Get Private IP of EC2 Instance
-  hosts: all
+- hosts: all
   gather_facts: false
   tasks:
-    - name: Describe EC2 instance
+    - name: Get EC2 instance details
       amazon.aws.ec2_instance_info:
         instance_ids:
-          - i-0efff5fc4ba75e73
+          - i-0efff5fc4ba75e733
         region: ap-northeast-1
       register: ec2_info
 
-    - name: Display private IP
+    - name: Display instance IP address
       debug:
-        msg: "Private IP: {{ ec2_info.instances[0].private_ip_address }}"
+        msg: "Instance ID: {{ ec2_info.instances[0].instance_id }}, Private IP: {{ ec2_info.instances[0].private_ip_address }}, Public IP: {{ ec2_info.instances[0].public_ip_address }}"
