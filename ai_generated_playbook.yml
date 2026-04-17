@@ -1,20 +1,25 @@
 ---
-- hosts: localhost
+- hosts: 172.31.47.112
   gather_facts: no
+  vars:
+    ansible_connection: winrm
+    ansible_port: 5986
+    ansible_winrm_server_cert_validation: ignore
+    ansible_winrm_transport: basic
   tasks:
-    - name: Get EC2 instance details
-      amazon.aws.ec2_instance_info:
-        instance_ids:
-          - i-0f07a909840b74d46
-        region: ap-northeast-1
-      register: ec2_info
+    - name: Get current hostname
+      win_shell: hostname
+      register: current_hostname
+      changed_when: false
 
-    - name: Display instance IP addresses
-      debug:
-        msg: |
-          Instance ID: {{ item.instance_id }}
-          Private IP: {{ item.private_ip_address }}
-          Public IP: {{ item.public_ip_address | default('N/A') }}
-      loop: "{{ ec2_info.instances }}"
-      loop_control:
-        label: "{{ item.instance_id }}"
+    - name: Change hostname to AWXTEST9417
+      win_hostname:
+        name: AWXTEST9417
+      register: hostname_result
+      when: current_hostname.stdout_lines[0] != 'AWXTEST9417'
+
+    - name: Reboot server to apply hostname change
+      win_reboot:
+        msg: "Rebooting to apply hostname change"
+        pre_reboot_delay: 5
+      when: hostname_result.changed | default(false)
