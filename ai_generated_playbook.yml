@@ -1,14 +1,20 @@
 ---
-- hosts: all
-  gather_facts: false
+- hosts: 172.31.36.217
+  gather_facts: no
+  vars:
+    ansible_connection: winrm
+    ansible_port: 5986
+    ansible_winrm_server_cert_validation: ignore
+    ansible_winrm_transport: basic
+    new_hostname: AWXTEST08
   tasks:
-    - name: Get EC2 instance details
-      amazon.aws.ec2_instance_info:
-        instance_ids:
-          - i-0efff5fc4ba75e733
-        region: ap-northeast-1
-      register: ec2_info
+    - name: Get current hostname
+      win_hostname:
+        name: "{{ new_hostname }}"
+      register: hostname_result
 
-    - name: Display instance IP address
-      debug:
-        msg: "Instance ID: {{ ec2_info.instances[0].instance_id }}, Private IP: {{ ec2_info.instances[0].private_ip_address }}, Public IP: {{ ec2_info.instances[0].public_ip_address }}"
+    - name: Reboot if hostname changed
+      win_reboot:
+        msg: "Hostname is being changed to {{ new_hostname }}"
+        pre_reboot_delay: 2
+      when: hostname_result.reboot_required | default(false)
