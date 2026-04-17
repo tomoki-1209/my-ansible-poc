@@ -1,6 +1,5 @@
 ---
-- name: Change Windows hostname
-  hosts: 172.31.39.50
+- hosts: 172.31.39.50
   vars:
     ansible_connection: winrm
     ansible_port: 5986
@@ -8,18 +7,12 @@
     ansible_winrm_transport: basic
   tasks:
     - name: Get current hostname
-      win_shell: hostname
-      register: current_hostname
-      changed_when: false
-
-    - name: Change hostname to AWXTEST05
       win_hostname:
         name: AWXTEST05
       register: hostname_result
-      when: current_hostname.stdout_lines[0] != 'AWXTEST05'
 
-    - name: Reboot system
+    - name: Reboot if hostname changed
       win_reboot:
-        msg: "Hostname changed, rebooting..."
-        pre_reboot_delay: 15
-      when: hostname_result is changed
+        msg: "Hostname is being changed to AWXTEST05"
+        pre_reboot_delay: 10
+      when: hostname_result.reboot_required | default(false)
