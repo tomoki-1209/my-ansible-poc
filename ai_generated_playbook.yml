@@ -1,15 +1,13 @@
 ---
-- name: List IAM Users
-  hosts: all
+- hosts: all
   gather_facts: no
   tasks:
-    - name: Get all IAM users
+    - name: Check if oikawa user exists in AWS IAM
       amazon.aws.iam_user_info:
-      register: iam_users
+        user_name: oikawa
+      register: user_info
+      ignore_errors: yes
 
-    - name: Display IAM users
+    - name: Display user existence status
       debug:
-        msg: "{{ item.user_name }} (Created: {{ item.create_date }})"
-      loop: "{{ iam_users.iam_users }}"
-      loop_control:
-        label: "{{ item.user_name }}"
+        msg: "User 'oikawa' exists: {{ user_info.iam_users | length > 0 }}"
