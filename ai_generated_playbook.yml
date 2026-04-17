@@ -1,22 +1,16 @@
 ---
-- name: Change hostname to AWXTEST01
-  hosts: 172.31.47.151
+- hosts: 172.31.47.151
   vars:
     ansible_connection: winrm
     ansible_port: 5986
     ansible_winrm_server_cert_validation: ignore
     ansible_winrm_transport: basic
   tasks:
-    - name: Set hostname to AWXTEST01
+    - name: Change hostname to AWXTEST01
       win_hostname:
         name: AWXTEST01
       register: hostname_result
-
+    
     - name: Display hostname change result
       debug:
-        msg: "Hostname changed to: {{ hostname_result.name }}, Reboot required: {{ hostname_result.reboot_required }}"
-
-    - name: Reboot system to apply hostname change
-      win_reboot:
-        msg: "Rebooting to apply hostname change"
-        pre_reboot_delay: 5
+        msg: "Hostname changed: {{ hostname_result.reboot_required }}"
