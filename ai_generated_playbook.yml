@@ -1,15 +1,22 @@
 ---
-- name: Get IAM Users List
-  hosts: all
-  gather_facts: no
+- name: Check IAM users related to Oikawa
+  hosts: localhost
+  gather_facts: false
   tasks:
-    - name: Retrieve IAM users
+    - name: List all IAM users
       amazon.aws.iam_user_info:
-      register: iam_users
+      register: iam_users_result
 
-    - name: Display IAM users
+    - name: Filter and display Oikawa-related users
       debug:
-        msg: "{{ item.user_name }} (ARN: {{ item.arn }}, Created: {{ item.create_date }})"
-      loop: "{{ iam_users.iam_users }}"
+        msg: "{{ item.user_name }}"
+      loop: "{{ iam_users_result.iam_users }}"
       loop_control:
         label: "{{ item.user_name }}"
+      when: "'oikawa' in item.user_name | lower"
+
+    - name: Show summary
+      debug:
+        msg: "Found {{ filtered_users | length }} Oikawa-related IAM user(s)"
+      vars:
+        filtered_users: "{{ iam_users_result.iam_users | selectattr('user_name', 'search', 'oikawa', ignorecase=true) | list }}"
