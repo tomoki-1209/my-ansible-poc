@@ -1,7 +1,7 @@
 ---
 - name: Get EC2 instances information
   hosts: localhost
-  gather_facts: no
+  gather_facts: false
   tasks:
     - name: Describe EC2 instances
       amazon.aws.ec2_instance_info:
