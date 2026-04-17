@@ -1,16 +1,52 @@
 ---
-- hosts: all
-  vars:
-    ansible_connection: winrm
-    ansible_port: 5986
-    ansible_winrm_server_cert_validation: ignore
-    ansible_winrm_transport: basic
+- name: Create Windows Server 2022 EC2 Instance
+  hosts: localhost
+  gather_facts: yes
   tasks:
-    - name: Get hostname
-      win_shell: hostname
-      register: hostname_result
-      delegate_to: 172.31.43.44
+    - name: Get current date and time
+      set_fact:
+        current_datetime: "{{ ansible_date_time.iso8601_basic_short }}"
 
-    - name: Display hostname
+    - name: Create Windows Server 2022 EC2 Instance
+      amazon.aws.ec2_instance:
+        name: "WindowsServer2022-{{ current_datetime }}"
+        image_id: ami-011fe16e2cdada577
+        instance_type: t3.medium
+        region: ap-northeast-1
+        key_name: keypair_oikawa
+        security_group: sg-073febbc6a28f598e
+        user_data: |
+          <powershell>
+          # Enable WinRM
+          winrm quickconfig -q
+          winrm set winrm/config/winrs '@{MaxMemoryPerShellMB="1024"}'
+          winrm set winrm/config/service '@{AllowUnencrypted="false"}'
+          winrm set winrm/config/service/auth '@{Basic="true"}'
+          winrm set winrm/config/client/auth '@{Basic="true"}'
+
+          # Create self-signed certificate
+          $thumbprint = (New-SelfSignedCertificate -DnsName $env:COMPUTERNAME -CertStoreLocation Cert:\LocalMachine\My -KeySpec KeyExchange).Thumbprint
+          $cmd = "powershell -Command `"& {winrm create winrm/config/Listener?Address=*+Transport=HTTPS '@{Hostname=`"$env:COMPUTERNAME`";CertificateThumbprint=`"$thumbprint`"}' 2>$null`""
+          cmd.exe /c $cmd
+
+          # Set Administrator password
+          $admin = [ADSI]("WinNT://./Administrator, user")
+          $admin.SetPassword("{{ admin_password }}")
+
+          # Disable Windows Defender Firewall
+          Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False
+
+          # Restart WinRM service
+          Restart-Service WinRM
+          </powershell>
+        tags:
+          Name: "WindowsServer2022-{{ current_datetime }}"
+          AWX-Managed: "True"
+        wait: yes
+        wait_timeout: 600
+      no_log: true
+      register: ec2_instance
+
+    - name: Display instance information
       debug:
-        msg: "{{ hostname_result.stdout_lines[0] }}"
+        msg: "EC2 Instance created: {{ ec2_instance.instances[0].instance_id }}"
