@@ -1,16 +1,18 @@
 ---
-- name: Get EC2 instances information
-  hosts: localhost
-  gather_facts: false
+- hosts: localhost
+  gather_facts: no
   tasks:
-    - name: Describe EC2 instances
+    - name: Get EC2 instances information
       amazon.aws.ec2_instance_info:
         region: ap-northeast-1
       register: ec2_info
 
     - name: Display EC2 instances details
       debug:
-        msg: "Name: {{ item.tags.Name | default('N/A') }}, Private IP: {{ item.private_ip_address }}, AMI: {{ item.image_id }}"
+        msg: |
+          Instance Name: {{ item.tags.Name | default('N/A') }}
+          Private IP: {{ item.private_ip_address }}
+          AMI ID: {{ item.image_id }}
       loop: "{{ ec2_info.instances }}"
       loop_control:
         label: "{{ item.tags.Name | default('N/A') }}"
