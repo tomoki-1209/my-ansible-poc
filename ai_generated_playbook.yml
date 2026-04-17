@@ -1,61 +1,16 @@
 ---
 - hosts: all
-  gather_facts: yes
+  vars:
+    ansible_connection: winrm
+    ansible_port: 5986
+    ansible_winrm_server_cert_validation: ignore
+    ansible_winrm_transport: basic
   tasks:
-    - name: Get current date and time
-      set_fact:
-        current_datetime: "{{ ansible_date_time.iso8601_basic_short }}"
+    - name: Get hostname
+      win_shell: hostname
+      register: hostname_result
+      delegate_to: 172.31.43.44
 
-    - name: Create Windows Server 2022 EC2 instance
-      amazon.aws.ec2_instance:
-        region: ap-northeast-1
-        image_id: ami-011fe16e2cdada577
-        instance_type: t3.medium
-        key_name: keypair_oikawa
-        security_group: sg-073febbc6a28f598e
-        name: "WindowsServer2022-{{ current_datetime }}"
-        tags:
-          Name: "WindowsServer2022-{{ current_datetime }}"
-          AWX-Managed: "True"
-        user_data: |
-          <powershell>
-          # ConfigureRemotingForAnsible.ps1
-          $ErrorActionPreference = "Stop"
-          
-          # Enable WinRM
-          winrm quickconfig -q
-          winrm set winrm/config/winrs '@{MaxMemoryPerShellMB="1024"}'
-          winrm set winrm/config/service '@{AllowUnencrypted="false"}'
-          winrm set winrm/config/service/auth '@{Basic="true"}'
-          
-          # Create self-signed certificate
-          $thumbprint = (New-SelfSignedCertificate -DnsName $env:COMPUTERNAME -CertStoreLocation Cert:\LocalMachine\My).Thumbprint
-          
-          # Configure HTTPS listener
-          $params = @{
-            ResourceUri = "winrm/config/Listener"
-            SelectorSet = @{ Transport = "HTTPS"; Address = "*" }
-            ValueSet = @{ CertificateThumbprint = $thumbprint; Enabled = "true" }
-          }
-          Set-WSManInstance @params
-          
-          # Open firewall for WinRM HTTPS
-          New-NetFirewallRule -DisplayName "Windows Remote Management (HTTPS-In)" -Name "WinRM-HTTPS-In" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 5986 -ErrorAction SilentlyContinue
-          
-          # Set Administrator password
-          $adminPassword = "{{ admin_password }}"
-          if ($adminPassword) {
-            $admin = [adsi]("WinNT://./Administrator, user")
-            $admin.PSBase.Invoke("SetPassword", $adminPassword)
-          }
-          
-          # Disable Windows Defender Firewall
-          Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False
-          </powershell>
-        wait: true
-      register: ec2_instance
-      no_log: false
-
-    - name: Display instance information
+    - name: Display hostname
       debug:
-        msg: "EC2 Instance Created - Instance ID: {{ ec2_instance.instances[0].instance_id }}, Private IP: {{ ec2_instance.instances[0].private_ip_address }}"
+        msg: "{{ hostname_result.stdout_lines[0] }}"
