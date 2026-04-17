@@ -1,19 +1,15 @@
 ---
-- name: Set hostname for Windows Server
-  hosts: 172.31.39.190
-  vars:
-    ansible_connection: winrm
-    ansible_port: 5986
-    ansible_winrm_server_cert_validation: ignore
-    ansible_winrm_transport: basic
+- name: List IAM Users
+  hosts: all
+  gather_facts: no
   tasks:
-    - name: Get current hostname
-      win_hostname:
-        name: AWXTEST10
-      register: hostname_result
+    - name: Get all IAM users
+      amazon.aws.iam_user_info:
+      register: iam_users
 
-    - name: Reboot if hostname changed
-      win_reboot:
-        msg: "Hostname changed to AWXTEST10. Rebooting..."
-        pre_reboot_delay: 2
-      when: hostname_result.reboot_required
+    - name: Display IAM users
+      debug:
+        msg: "{{ item.user_name }} (Created: {{ item.create_date }})"
+      loop: "{{ iam_users.iam_users }}"
+      loop_control:
+        label: "{{ item.user_name }}"
