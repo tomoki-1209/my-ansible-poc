@@ -1,15 +1,24 @@
 ---
-- name: Get private IP for EC2 instance
-  hosts: all
-  gather_facts: no
+- hosts: 172.31.46.124
+  vars:
+    ansible_connection: winrm
+    ansible_port: 5986
+    ansible_winrm_server_cert_validation: ignore
+    ansible_winrm_transport: basic
   tasks:
-    - name: Get EC2 instance information
-      amazon.aws.ec2_instance_info:
-        instance_ids:
-          - i-0816f19eda352b01b
-        region: ap-northeast-1
-      register: ec2_info
+    - name: Get current hostname
+      win_shell: hostname
+      register: current_hostname
+      changed_when: false
 
-    - name: Display private IP
-      debug:
-        msg: "Private IP: {{ ec2_info.instances[0].private_ip_address }}"
+    - name: Set hostname to AWXTEST09
+      win_hostname:
+        name: AWXTEST09
+      register: hostname_result
+      when: current_hostname.stdout_lines[0] != 'AWXTEST09'
+
+    - name: Reboot system if hostname changed
+      win_reboot:
+        msg: "Hostname changed to AWXTEST09. Rebooting..."
+        pre_reboot_delay: 5
+      when: hostname_result is changed
