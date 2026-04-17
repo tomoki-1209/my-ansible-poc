@@ -1,22 +1,65 @@
 ---
-- name: Check IAM users related to Oikawa
+- name: Create Windows Server 2022 EC2 Instance
   hosts: localhost
-  gather_facts: false
+  connection: local
+  gather_facts: yes
+
   tasks:
-    - name: List all IAM users
-      amazon.aws.iam_user_info:
-      register: iam_users_result
+    - name: Create Windows Server 2022 EC2 Instance
+      amazon.aws.ec2_instance:
+        name: "WindowsServer2022-{{ ansible_date_time.iso8601_basic_short }}"
+        image_id: ami-011fe16e2cdada577
+        instance_type: t3.medium
+        key_name: keypair_oikawa
+        region: ap-northeast-1
+        security_group: sg-073febbc6a28f598e
+        user_data: |
+          <powershell>
+          # 1. ネットワークとシステムの安定待ち
+          Start-Sleep -Seconds 30
 
-    - name: Filter and display Oikawa-related users
-      debug:
-        msg: "{{ item.user_name }}"
-      loop: "{{ iam_users_result.iam_users }}"
-      loop_control:
-        label: "{{ item.user_name }}"
-      when: "'oikawa' in item.user_name | lower"
+          # 2. WinRMの基本有効化とメモリ制限緩和
+          winrm quickconfig -q
+          winrm set winrm/config/winrs '@{MaxMemoryPerShellMB="1024"}'
 
-    - name: Show summary
+          # 3. 認証設定 (Basic認証を許可 / 暗号化なしHTTPは拒否)
+          winrm set winrm/config/service/auth '@{Basic="true"}'
+          winrm set winrm/config/service '@{AllowUnencrypted="false"}'
+
+          # 4. HTTPSリスナーの作成 (自己署名証明書 / ホスト名制約なし)
+          $Cert = New-SelfSignedCertificate -DnsName "*" -CertStoreLocation Cert:\LocalMachine\My -KeySpec KeyExchange
+          $tp = $Cert.Thumbprint
+          winrm delete winrm/config/Listener?Address=*+Transport=HTTPS 2>$null
+          winrm create winrm/config/Listener?Address=*+Transport=HTTPS "@{CertificateThumbprint=`"$tp`"}"
+
+          # 5. リモート管理者制限の解除 (重要：これがないとAnsibleで権限昇格できません)
+          $registryPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
+          $name = "LocalAccountTokenFilterPolicy"
+          if (!(Test-Path $registryPath)) { New-Item -Path $registryPath -Force }
+          New-ItemProperty -Path $registryPath -Name $name -Value 1 -PropertyType DWord -Force
+
+          # 6. Administratorパスワードの強制変更
+          $admin = [adsi]("WinNT://./Administrator, user")
+          $admin.SetPassword("{{ admin_password }}")
+
+          # 7. ファイアウォールの完全無効化 (AWS Security Groupで制御するため)
+          Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False
+
+          # 8. 設定を反映させるための再起動
+          Restart-Service WinRM
+          </powershell>
+        tags:
+          Name: "WindowsServer2022-{{ ansible_date_time.iso8601_basic_short }}"
+          AWX-Managed: "True"
+        wait: yes
+        wait_timeout: 600
+      no_log: true
+      register: ec2_instance
+
+    - name: Display created instance information
       debug:
-        msg: "Found {{ filtered_users | length }} Oikawa-related IAM user(s)"
-      vars:
-        filtered_users: "{{ iam_users_result.iam_users | selectattr('user_name', 'search', 'oikawa', ignorecase=true) | list }}"
+        msg:
+          - "Instance ID: {{ ec2_instance.instances[0].instance_id }}"
+          - "Instance Type: {{ ec2_instance.instances[0].instance_type }}"
+          - "Public IP: {{ ec2_instance.instances[0].public_ip_address }}"
+          - "State: {{ ec2_instance.instances[0].state.name }}"
