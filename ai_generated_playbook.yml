@@ -6,11 +6,13 @@
     ansible_winrm_server_cert_validation: ignore
     ansible_winrm_transport: basic
   tasks:
-    - name: Change hostname to AWXTEST01
+    - name: Change hostname to AWXTEST02
       win_hostname:
-        name: AWXTEST01
+        name: AWXTEST02
       register: hostname_result
-    
-    - name: Display hostname change result
-      debug:
-        msg: "Hostname changed: {{ hostname_result.reboot_required }}"
+
+    - name: Reboot if hostname changed
+      win_reboot:
+        msg: "Hostname changed to AWXTEST02. Rebooting..."
+        pre_reboot_delay: 5
+      when: hostname_result.reboot_required | default(false)
