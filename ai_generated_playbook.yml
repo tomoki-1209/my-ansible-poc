@@ -1,71 +1,15 @@
 ---
-- name: Create Windows Server 2022 EC2 Instance
-  hosts: localhost
-  connection: local
-  gather_facts: yes
-  vars:
-    admin_password: "{{ admin_password_input | default('P@ssw0rd123!') }}"
+- name: Get private IP for EC2 instance
+  hosts: all
+  gather_facts: no
   tasks:
-    - name: Get current datetime
-      set_fact:
-        current_datetime: "{{ ansible_date_time.iso8601_basic_short }}"
-
-    - name: Create Windows Server 2022 EC2 Instance
-      amazon.aws.ec2_instance:
-        name: "WindowsServer2022-{{ current_datetime }}"
-        instance_type: t3.medium
-        image_id: ami-011fe16e2cdada577
+    - name: Get EC2 instance information
+      amazon.aws.ec2_instance_info:
+        instance_ids:
+          - i-0816f19eda352b01b
         region: ap-northeast-1
-        key_name: keypair_oikawa
-        security_group: sg-073febbc6a28f598e
-        user_data: |
-          <powershell>
-          # 1. ネットワークとシステムの安定待ち
-          Start-Sleep -Seconds 30
+      register: ec2_info
 
-          # 2. WinRMの基本有効化とメモリ制限緩和
-          winrm quickconfig -q
-          winrm set winrm/config/winrs '@{MaxMemoryPerShellMB="1024"}'
-
-          # 3. 認証設定 (Basic認証を許可 / 暗号化なしHTTPは拒否)
-          winrm set winrm/config/service/auth '@{Basic="true"}'
-          winrm set winrm/config/service '@{AllowUnencrypted="false"}'
-
-          # 4. HTTPSリスナーの作成 (自己署名証明書 / ホスト名制約なし)
-          $Cert = New-SelfSignedCertificate -DnsName "*" -CertStoreLocation Cert:\LocalMachine\My -KeySpec KeyExchange
-          $tp = $Cert.Thumbprint
-          winrm delete winrm/config/Listener?Address=*+Transport=HTTPS 2>$null
-          winrm create winrm/config/Listener?Address=*+Transport=HTTPS "@{CertificateThumbprint=`"$tp`"}"
-
-          # 5. リモート管理者制限の解除 (重要：これがないとAnsibleで権限昇格できません)
-          $registryPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
-          $name = "LocalAccountTokenFilterPolicy"
-          if (!(Test-Path $registryPath)) { New-Item -Path $registryPath -Force }
-          New-ItemProperty -Path $registryPath -Name $name -Value 1 -PropertyType DWord -Force
-
-          # 6. Administratorパスワードの強制変更
-          $admin = [adsi]("WinNT://./Administrator, user")
-          $admin.SetPassword("{{ admin_password }}")
-
-          # 7. ファイアウォールの完全無効化 (AWS Security Groupで制御するため)
-          Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False
-
-          # 8. 設定を反映させるための再起動
-          Restart-Service WinRM
-          </powershell>
-        tags:
-          Name: "WindowsServer2022-{{ current_datetime }}"
-          AWX-Managed: "True"
-        wait: yes
-      no_log: true
-      register: ec2_result
-
-    - name: Display EC2 Instance Details
+    - name: Display private IP
       debug:
-        msg:
-          - "Instance ID: {{ ec2_result.instances[0].instance_id }}"
-          - "Instance Type: {{ ec2_result.instances[0].instance_type }}"
-          - "AMI ID: {{ ec2_result.instances[0].image_id }}"
-          - "State: {{ ec2_result.instances[0].state.name }}"
-          - "Region: {{ ec2_result.instances[0].placement.availability_zone }}"
-          - "Public IP: {{ ec2_result.instances[0].public_ip_address | default('Pending') }}"
+        msg: "Private IP: {{ ec2_info.instances[0].private_ip_address }}"
