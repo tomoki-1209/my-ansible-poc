@@ -2,12 +2,20 @@
 - hosts: all
   gather_facts: no
   tasks:
-    - name: Check if oikawa user exists in AWS IAM
+    - name: Check if oikawa-related IAM users exist
       amazon.aws.iam_user_info:
-        user_name: oikawa
-      register: user_info
-      ignore_errors: yes
+        region: ap-northeast-1
+      register: iam_users
 
-    - name: Display user existence status
+    - name: Display oikawa-related users
       debug:
-        msg: "User 'oikawa' exists: {{ user_info.iam_users | length > 0 }}"
+        msg: "{{ item.user_name }}"
+      loop: "{{ iam_users.iam_users }}"
+      loop_control:
+        label: "{{ item.user_name }}"
+      when: "'oikawa' in item.user_name | lower"
+
+    - name: Show result if no oikawa users found
+      debug:
+        msg: "No IAM users with 'oikawa' in the name were found"
+      when: iam_users.iam_users | selectattr('user_name', 'match', '(?i)oikawa') | list | length == 0
