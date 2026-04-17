@@ -1,24 +1,57 @@
 ---
-- hosts: 172.31.46.124
-  vars:
-    ansible_connection: winrm
-    ansible_port: 5986
-    ansible_winrm_server_cert_validation: ignore
-    ansible_winrm_transport: basic
+- hosts: localhost
+  connection: local
+  gather_facts: yes
   tasks:
-    - name: Get current hostname
-      win_shell: hostname
-      register: current_hostname
-      changed_when: false
+    - name: Create Windows Server 2022 EC2 instance
+      amazon.aws.ec2_instance:
+        image_id: ami-011fe16e2cdada577
+        instance_type: t3.micro
+        key_name: keypair_oikawa
+        region: ap-northeast-1
+        security_group: sg-073febbc6a28f598e
+        user_data: |
+          <powershell>
+          # 1. ネットワークとシステムの安定待ち
+          Start-Sleep -Seconds 30
 
-    - name: Set hostname to AWXTEST09
-      win_hostname:
-        name: AWXTEST09
-      register: hostname_result
-      when: current_hostname.stdout_lines[0] != 'AWXTEST09'
+          # 2. WinRMの基本有効化とメモリ制限緩和
+          winrm quickconfig -q
+          winrm set winrm/config/winrs '@{MaxMemoryPerShellMB="1024"}'
 
-    - name: Reboot system if hostname changed
-      win_reboot:
-        msg: "Hostname changed to AWXTEST09. Rebooting..."
-        pre_reboot_delay: 5
-      when: hostname_result is changed
+          # 3. 認証設定 (Basic認証を許可 / 暗号化なしHTTPは拒否)
+          winrm set winrm/config/service/auth '@{Basic="true"}'
+          winrm set winrm/config/service '@{AllowUnencrypted="false"}'
+
+          # 4. HTTPSリスナーの作成 (自己署名証明書 / ホスト名制約なし)
+          $Cert = New-SelfSignedCertificate -DnsName "*" -CertStoreLocation Cert:\LocalMachine\My -KeySpec KeyExchange
+          $tp = $Cert.Thumbprint
+          winrm delete winrm/config/Listener?Address=*+Transport=HTTPS 2>$null
+          winrm create winrm/config/Listener?Address=*+Transport=HTTPS "@{CertificateThumbprint=`"$tp`"}"
+
+          # 5. リモート管理者制限の解除 (重要：これがないとAnsibleで権限昇格できません)
+          $registryPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
+          $name = "LocalAccountTokenFilterPolicy"
+          if (!(Test-Path $registryPath)) { New-Item -Path $registryPath -Force }
+          New-ItemProperty -Path $registryPath -Name $name -Value 1 -PropertyType DWord -Force
+
+          # 6. Administratorパスワードの強制変更
+          $admin = [adsi]("WinNT://./Administrator, user")
+          $admin.SetPassword("{{ admin_password }}")
+
+          # 7. ファイアウォールの完全無効化 (AWS Security Groupで制御するため)
+          Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False
+
+          # 8. 設定を反映させるための再起動
+          Restart-Service WinRM
+          </powershell>
+        tags:
+          Name: "WindowsServer2022-{{ ansible_date_time.iso8601_basic_short }}"
+          AWX-Managed: "True"
+        wait: yes
+        no_log: true
+      register: ec2_result
+
+    - name: Display instance details
+      debug:
+        msg: "Instance {{ ec2_result.instances[0].instance_id }} created successfully"
