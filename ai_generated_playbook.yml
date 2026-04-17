@@ -1,21 +1,15 @@
 ---
-- hosts: all
+- name: Get IAM Users List
+  hosts: all
   gather_facts: no
   tasks:
-    - name: Check if oikawa-related IAM users exist
+    - name: Retrieve IAM users
       amazon.aws.iam_user_info:
-        region: ap-northeast-1
       register: iam_users
 
-    - name: Display oikawa-related users
+    - name: Display IAM users
       debug:
-        msg: "{{ item.user_name }}"
+        msg: "{{ item.user_name }} (ARN: {{ item.arn }}, Created: {{ item.create_date }})"
       loop: "{{ iam_users.iam_users }}"
       loop_control:
         label: "{{ item.user_name }}"
-      when: "'oikawa' in item.user_name | lower"
-
-    - name: Show result if no oikawa users found
-      debug:
-        msg: "No IAM users with 'oikawa' in the name were found"
-      when: iam_users.iam_users | selectattr('user_name', 'match', '(?i)oikawa') | list | length == 0
