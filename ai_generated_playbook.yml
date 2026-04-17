@@ -1,18 +1,16 @@
 ---
-- hosts: 172.31.47.112
-  vars:
-    ansible_connection: winrm
-    ansible_port: 5986
-    ansible_winrm_server_cert_validation: ignore
-    ansible_winrm_transport: basic
+- name: Get EC2 instances information
+  hosts: localhost
+  gather_facts: no
   tasks:
-    - name: Get current hostname
-      win_hostname:
-        name: AWXTEST9417
-      register: hostname_result
+    - name: Describe EC2 instances
+      amazon.aws.ec2_instance_info:
+        region: ap-northeast-1
+      register: ec2_info
 
-    - name: Reboot if hostname changed
-      win_reboot:
-        msg: "Hostname changed to AWXTEST9417. Rebooting..."
-        pre_reboot_delay: 2
-      when: hostname_result.reboot_required | default(false)
+    - name: Display EC2 instances details
+      debug:
+        msg: "Name: {{ item.tags.Name | default('N/A') }}, Private IP: {{ item.private_ip_address }}, AMI: {{ item.image_id }}"
+      loop: "{{ ec2_info.instances }}"
+      loop_control:
+        label: "{{ item.tags.Name | default('N/A') }}"
