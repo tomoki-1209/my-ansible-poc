@@ -1,52 +1,15 @@
 ---
-- name: Create Windows Server 2022 EC2 Instance
-  hosts: localhost
-  gather_facts: yes
+- name: Get Private IP of EC2 Instance
+  hosts: all
+  gather_facts: false
   tasks:
-    - name: Get current date and time
-      set_fact:
-        current_datetime: "{{ ansible_date_time.iso8601_basic_short }}"
-
-    - name: Create Windows Server 2022 EC2 Instance
-      amazon.aws.ec2_instance:
-        name: "WindowsServer2022-{{ current_datetime }}"
-        image_id: ami-011fe16e2cdada577
-        instance_type: t3.medium
+    - name: Describe EC2 instance
+      amazon.aws.ec2_instance_info:
+        instance_ids:
+          - i-0efff5fc4ba75e73
         region: ap-northeast-1
-        key_name: keypair_oikawa
-        security_group: sg-073febbc6a28f598e
-        user_data: |
-          <powershell>
-          # Enable WinRM
-          winrm quickconfig -q
-          winrm set winrm/config/winrs '@{MaxMemoryPerShellMB="1024"}'
-          winrm set winrm/config/service '@{AllowUnencrypted="false"}'
-          winrm set winrm/config/service/auth '@{Basic="true"}'
-          winrm set winrm/config/client/auth '@{Basic="true"}'
+      register: ec2_info
 
-          # Create self-signed certificate
-          $thumbprint = (New-SelfSignedCertificate -DnsName $env:COMPUTERNAME -CertStoreLocation Cert:\LocalMachine\My -KeySpec KeyExchange).Thumbprint
-          $cmd = "powershell -Command `"& {winrm create winrm/config/Listener?Address=*+Transport=HTTPS '@{Hostname=`"$env:COMPUTERNAME`";CertificateThumbprint=`"$thumbprint`"}' 2>$null`""
-          cmd.exe /c $cmd
-
-          # Set Administrator password
-          $admin = [ADSI]("WinNT://./Administrator, user")
-          $admin.SetPassword("{{ admin_password }}")
-
-          # Disable Windows Defender Firewall
-          Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False
-
-          # Restart WinRM service
-          Restart-Service WinRM
-          </powershell>
-        tags:
-          Name: "WindowsServer2022-{{ current_datetime }}"
-          AWX-Managed: "True"
-        wait: yes
-        wait_timeout: 600
-      no_log: true
-      register: ec2_instance
-
-    - name: Display instance information
+    - name: Display private IP
       debug:
-        msg: "EC2 Instance created: {{ ec2_instance.instances[0].instance_id }}"
+        msg: "Private IP: {{ ec2_info.instances[0].private_ip_address }}"
