@@ -1,18 +1,15 @@
 ---
-- hosts: localhost
-  gather_facts: no
+- name: Get IAM Users List
+  hosts: localhost
+  gather_facts: false
   tasks:
-    - name: Get EC2 instances information
-      amazon.aws.ec2_instance_info:
-        region: ap-northeast-1
-      register: ec2_info
+    - name: List all IAM users
+      amazon.aws.iam_user_info:
+      register: iam_users
 
-    - name: Display EC2 instances details
+    - name: Display IAM users
       debug:
-        msg: |
-          Instance Name: {{ item.tags.Name | default('N/A') }}
-          Private IP: {{ item.private_ip_address }}
-          AMI ID: {{ item.image_id }}
-      loop: "{{ ec2_info.instances }}"
+        msg: "{{ item.user_name }} (ARN: {{ item.arn }})"
+      loop: "{{ iam_users.iam_users }}"
       loop_control:
-        label: "{{ item.tags.Name | default('N/A') }}"
+        label: "{{ item.user_name }}"
