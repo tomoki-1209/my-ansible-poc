@@ -1,14 +1,15 @@
 ---
-- hosts: localhost
-  gather_facts: no
+- name: Get IAM Users List
+  hosts: localhost
+  gather_facts: false
   tasks:
-    - name: Get IAM users list
+    - name: Retrieve IAM users
       amazon.aws.iam_user_info:
       register: iam_users
 
     - name: Display IAM users
       debug:
-        msg: "{{ item.user_name }}"
+        msg: "{{ item.user_name }} (Created: {{ item.create_date }})"
       loop: "{{ iam_users.iam_users }}"
       loop_control:
         label: "{{ item.user_name }}"
