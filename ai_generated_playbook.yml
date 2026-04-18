@@ -1,7 +1,7 @@
 ---
 - name: Get IAM Users List
   hosts: localhost
-  gather_facts: false
+  gather_facts: no
   tasks:
     - name: List all IAM users
       amazon.aws.iam_user_info:
@@ -9,7 +9,7 @@
 
     - name: Display IAM users
       debug:
-        msg: "{{ item.user_name }}"
+        msg: "User: {{ item.user_name }} | ARN: {{ item.arn }} | Created: {{ item.create_date }}"
       loop: "{{ iam_users.iam_users }}"
       loop_control:
         label: "{{ item.user_name }}"
